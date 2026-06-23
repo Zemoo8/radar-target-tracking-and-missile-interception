@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(New-Item *)",
+      "Bash(python *)",
+      "Bash(pip install *)",
+      "Bash(Copy-Item *)",
+      "PowerShell(Copy-Item *)"
+    ]
+  }
+}

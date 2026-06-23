@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AEGIS — Radar Tracking & Missile Intercept</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#020810;font-family:'Courier New',monospace;overflow:hidden;color:#00ff88}
+#c{position:fixed;top:0;left:0;width:100%;height:100%}
+
+#sl{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:90;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px)}
+
+.pnl{position:fixed;background:rgba(0,12,6,.9);border:1px solid #00ff8844;border-radius:3px;
+  padding:12px 15px;backdrop-filter:blur(8px);z-index:10}
+.ptitle{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#00ff88aa;
+  border-bottom:1px solid #00ff8820;padding-bottom:6px;margin-bottom:10px}
+.mrow{display:flex;justify-content:space-between;align-items:center;margin:4px 0;font-size:11px}
+.mlbl{color:#4a6655}
+.mval{color:#00ff88;font-weight:bold}
+.mval.w{color:#ffaa00}.mval.d{color:#ff4433}.mval.g{color:#00ffcc}
+
+#ps{top:14px;left:14px;width:210px}
+.sbar{background:#00ff8810;border:1px solid #00ff8820;height:5px;border-radius:2px;margin-top:5px;overflow:hidden}
+.sfill{height:100%;background:linear-gradient(90deg,#00ff8870,#00ff88);transition:width .25s}
+
+#pp{top:14px;left:50%;transform:translateX(-50%);min-width:230px;text-align:center;padding:10px 22px}
+.phase{font-size:13px;letter-spacing:4px;text-transform:uppercase}
+@keyframes blink{50%{opacity:0}}.blink{animation:blink .9s step-end infinite}
+
+#pm{top:14px;right:14px;width:230px}
+
+#pl{bottom:70px;right:14px;width:160px}
+.leg{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:10px;color:#4a6655}
+.legdot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.legline{width:18px;height:2px;flex-shrink:0}
+
+#pc{bottom:14px;left:50%;transform:translateX(-50%);display:flex;align-items:center;
+  gap:14px;padding:9px 20px;white-space:nowrap}
+button{background:#001308;border:1px solid #00ff8855;color:#00ff88;padding:5px 16px;
+  border-radius:2px;cursor:pointer;font-family:inherit;font-size:11px;letter-spacing:1px;
+  text-transform:uppercase;transition:background .15s}
+button:hover{background:#00ff8818}
+button.act{background:#00ff8828;border-color:#00ffcc99;color:#00ffcc}
+.sg{display:flex;align-items:center;gap:7px;font-size:10px;color:#4a6655}
+input[type=range]{-webkit-appearance:none;width:90px;height:3px;background:#00ff8822;border-radius:2px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;background:#00ff88;border-radius:50%;cursor:pointer}
+.tg{display:flex;gap:6px}
+.tb{font-size:9px;padding:4px 9px;opacity:.3;letter-spacing:.5px}
+.tb.on{opacity:1}
+
+.corner{position:fixed;width:36px;height:36px;z-index:5;pointer-events:none}
+.corner.tl{top:0;left:0;border-top:2px solid #00ff8850;border-left:2px solid #00ff8850}
+.corner.tr{top:0;right:0;border-top:2px solid #00ff8850;border-right:2px solid #00ff8850}
+.corner.bl{bottom:0;left:0;border-bottom:2px solid #00ff8850;border-left:2px solid #00ff8850}
+.corner.br{bottom:0;right:0;border-bottom:2px solid #00ff8850;border-right:2px solid #00ff8850}
+
+/* ── Equation overlay ──────────────────────────────────────────────────────── */
+#eqdim{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0);
+  z-index:20;pointer-events:none;transition:background .5s}
+/* Subtle dim — 3D scene stays clearly visible */
+#eqdim.on{background:rgba(0,0,0,.22)}
+
+/* Left-side tactical HUD panel */
+#eqpanel{position:fixed;top:50%;left:40px;
+  transform:translateY(-50%) scale(.9);
+  background:rgba(0,8,4,.93);
+  border:1px solid #00ff8818;
+  border-left:3px solid #00ff88;   /* accent bar — colour overridden in JS */
+  box-shadow:0 0 22px #00ff8822,0 0 5px #00ffcc10,inset 0 0 16px rgba(0,255,136,.02);
+  border-radius:3px;padding:16px 20px 18px 18px;z-index:30;
+  width:400px;text-align:left;
+  pointer-events:none;opacity:0;transition:opacity .9s,transform .9s}
+#eqpanel.show{opacity:1;transform:translateY(-50%) scale(1)}
+
+#eqreport{font-size:7.5px;letter-spacing:3px;color:#00ff8840;
+  text-transform:uppercase;margin-bottom:8px;transition:opacity .35s}
+#eqtitle{font-size:10px;letter-spacing:3.5px;text-transform:uppercase;
+  padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid #00ff8818;
+  transition:opacity .35s}
+#eqmain{font-size:20px;letter-spacing:1px;min-height:32px;margin-bottom:10px;
+  text-shadow:0 0 16px currentColor;white-space:normal;word-break:break-word;line-height:1.45}
+#eqexpl{font-size:9.5px;color:#4a7760;letter-spacing:.6px;line-height:1.6;
+  transition:opacity .4s}
+
+#calcflash{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-size:13px;letter-spacing:5px;text-transform:uppercase;z-index:35;
+  pointer-events:none;opacity:0;transition:opacity .28s}
+#calcflash.show{opacity:1}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="sl"></div>
+<div class="corner tl"></div><div class="corner tr"></div>
+<div class="corner bl"></div><div class="corner br"></div>
+
+<!-- Status panel -->
+<div class="pnl" id="ps">
+  <div class="ptitle">&#9658; System Status</div>
+  <div class="mrow"><span class="mlbl">MODE</span><span class="mval g" id="smode">ACQUISITION</span></div>
+  <div class="mrow"><span class="mlbl">RADAR</span><span class="mval" id="sradar">SCANNING</span></div>
+  <div class="mrow"><span class="mlbl">KF CONF</span><span class="mval" id="sconf">&#8212;</span></div>
+  <div class="mrow"><span class="mlbl">DETECTIONS</span><span class="mval" id="sdet">0</span></div>
+  <div style="font-size:9px;color:#4a6655;margin-top:8px">MISSION PROGRESS</div>
+  <div class="sbar"><div class="sfill" id="prog" style="width:0%"></div></div>
+</div>
+
+<!-- Phase banner -->
+<div class="pnl" id="pp">
+  <div class="phase blink" id="phtext" style="color:#00ff88">RADAR ACQUISITION</div>
+</div>
+
+<!-- Metrics panel -->
+<div class="pnl" id="pm">
+  <div class="ptitle">&#9672; Live Tracking Metrics</div>
+  <div class="mrow"><span class="mlbl">Target Range</span><span class="mval" id="mrange">&#8212;</span></div>
+  <div class="mrow"><span class="mlbl">Altitude</span><span class="mval" id="malt">&#8212;</span></div>
+  <div class="mrow"><span class="mlbl">Speed</span><span class="mval" id="mspd">&#8212;</span></div>
+  <div style="border-top:1px solid #00ff8818;margin:7px 0"></div>
+  <div class="mrow"><span class="mlbl">Raw Radar Error</span><span class="mval w" id="mraw">&#8212;</span></div>
+  <div class="mrow"><span class="mlbl">KF Position Error</span><span class="mval" id="mkf">&#8212;</span></div>
+  <div class="mrow"><span class="mlbl">Error Reduction</span><span class="mval g" id="mred">&#8212;</span></div>
+  <div style="border-top:1px solid #00ff8818;margin:7px 0"></div>
+  <div class="mrow"><span class="mlbl">Interceptor Status</span><span class="mval" id="mmis">STANDBY</span></div>
+  <div class="mrow"><span class="mlbl">Time to Impact</span><span class="mval d" id="mtti">&#8212;</span></div>
+</div>
+
+<!-- Legend -->
+<div class="pnl" id="pl">
+  <div class="ptitle">&#9673; Legend</div>
+  <div class="leg"><div class="legline" style="background:#00ff66"></div>True trajectory</div>
+  <div class="leg"><div class="legdot" style="background:#ff2222"></div>Radar noise</div>
+  <div class="leg"><div class="legline" style="background:#00aaff"></div>Kalman estimate</div>
+  <div class="leg"><div class="legdot" style="background:#00ccff;border-radius:0"></div>KF position</div>
+  <div class="leg"><div class="legline" style="background:#ffaa00"></div>Interceptor trail</div>
+  <div class="leg"><div class="legline" style="background:#00ff88;opacity:.5"></div>Radar pulse</div>
+</div>
+
+<!-- Controls -->
+<div class="pnl" id="pc">
+  <button id="bplay" class="act">&#9646;&#9646; PAUSE</button>
+  <div class="sg">
+    <span>SPEED</span>
+    <input type="range" id="bspd" min="1" max="4" step="0.5" value="1">
+    <span id="bspdlbl" style="min-width:24px">1&times;</span>
+  </div>
+  <div class="tg">
+    <button class="tb on" id="tnoise">NOISE</button>
+    <button class="tb on" id="tkalman">KALMAN</button>
+    <button class="tb on" id="tmissile">MISSILE</button>
+  </div>
+  <button id="breset">&#8635; RESET</button>
+</div>
+
+<!-- Equation overlay dim layer -->
+<div id="eqdim"></div>
+
+<!-- Equation overlay panel -->
+<div id="eqpanel">
+  <div id="eqreport">Mathematical step used in the report</div>
+  <div id="eqtitle"></div>
+  <div id="eqmain"></div>
+  <div id="eqexpl"></div>
+</div>
+
+<!-- Calculating / Solution flash -->
+<div id="calcflash"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+// ── Renderer ──────────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({canvas: document.getElementById('c'), antialias: true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x020810);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x020810, 0.00050);
+
+const camera = new THREE.PerspectiveCamera(52, 1, 1, 10000);
+
+function onResize() {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+}
+onResize();
+window.addEventListener('resize', onResize);
+
+// ── Lights ────────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x102030, 1.3));
+const sunLight = new THREE.DirectionalLight(0x80ffcc, 0.5);
+sunLight.position.set(400, 900, 300);
+scene.add(sunLight);
+const bluePoint = new THREE.PointLight(0x0033cc, 1.0, 1500);
+bluePoint.position.set(0, 600, 0);
+scene.add(bluePoint);
+
+// ── Stars ─────────────────────────────────────────────────────────────────────
+(function() {
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(3600);
+  for (let i = 0; i < 3600; i += 3) {
+    const r   = 4500 + Math.random() * 2000;
+    const th  = Math.random() * Math.PI * 2;
+    const phi = Math.random() * Math.PI * 0.48;
+    pos[i]   = r * Math.sin(phi) * Math.cos(th);
+    pos[i+1] = r * Math.cos(phi) + 200;
+    pos[i+2] = r * Math.sin(phi) * Math.sin(th);
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(geo,
+    new THREE.PointsMaterial({color: 0x99bbdd, size: 2.2, transparent: true, opacity: 0.55})));
+})();
+
+// ── Ground ────────────────────────────────────────────────────────────────────
+scene.add(new THREE.GridHelper(4000, 80, 0x004422, 0x002211));
+
+const groundMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(4000, 4000),
+  new THREE.MeshLambertMaterial({color: 0x010a04, transparent: true, opacity: 0.96})
+);
+groundMesh.rotation.x = -Math.PI / 2;
+groundMesh.position.y = -0.5;
+scene.add(groundMesh);
+
+[400, 800, 1200].forEach(r => {
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(r - 0.8, r + 0.8, 80),
+    new THREE.MeshBasicMaterial({color: 0x003311, side: THREE.DoubleSide, transparent: true, opacity: 0.35})
+  );
+  ring.rotation.x = -Math.PI / 2;
+  scene.add(ring);
+});
+
+// ── Radar tower ───────────────────────────────────────────────────────────────
+const radarBase = new THREE.Group();
+scene.add(radarBase);
+
+const platform = new THREE.Mesh(
+  new THREE.CylinderGeometry(40, 52, 8, 12),
+  new THREE.MeshLambertMaterial({color: 0x223322})
+);
+platform.position.y = 4;
+radarBase.add(platform);
+
+const tower = new THREE.Mesh(
+  new THREE.CylinderGeometry(6, 10, 72, 8),
+  new THREE.MeshLambertMaterial({color: 0x334433})
+);
+tower.position.y = 40;
+radarBase.add(tower);
+
+const dishGroup = new THREE.Group();
+dishGroup.position.y = 78;
+radarBase.add(dishGroup);
+
+dishGroup.add(new THREE.Mesh(
+  new THREE.SphereGeometry(28, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2.2),
+  new THREE.MeshLambertMaterial({color: 0x445544, side: THREE.DoubleSide})
+));
+dishGroup.add(new THREE.Mesh(
+  new THREE.SphereGeometry(29.5, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2.2),
+  new THREE.MeshBasicMaterial({color: 0x00ff88, wireframe: true, transparent: true, opacity: 0.30})
+));
+
+const sweepBeam = new THREE.Mesh(
+  new THREE.ConeGeometry(1, 1400, 4, 1, true),
+  new THREE.MeshBasicMaterial({color: 0x00ff88, transparent: true, opacity: 0.035, side: THREE.DoubleSide})
+);
+sweepBeam.rotation.x = -Math.PI / 2;
+sweepBeam.position.z = 700;
+dishGroup.add(sweepBeam);
+
+// ── Interceptor launch pad ────────────────────────────────────────────────────
+const LAUNCH_POS = new THREE.Vector3(180, 0, 180);
+
+const padGroup = new THREE.Group();
+padGroup.position.copy(LAUNCH_POS);
+scene.add(padGroup);
+
+const padBase = new THREE.Mesh(
+  new THREE.CylinderGeometry(22, 26, 6, 8),
+  new THREE.MeshLambertMaterial({color: 0x334422})
+);
+padBase.position.set(0, 3, 0);
+padGroup.add(padBase);
+
+const padPole = new THREE.Mesh(
+  new THREE.CylinderGeometry(2, 2, 30, 6),
+  new THREE.MeshLambertMaterial({color: 0x445533})
+);
+padPole.position.set(0, 21, 0);
+padGroup.add(padPole);
+
+// ── Target aircraft ───────────────────────────────────────────────────────────
+const targetGrp = new THREE.Group();
+scene.add(targetGrp);
+
+const fuselageGeo = new THREE.CylinderGeometry(5, 5, 62, 8);
+fuselageGeo.rotateZ(Math.PI / 2);
+targetGrp.add(new THREE.Mesh(fuselageGeo,
+  new THREE.MeshLambertMaterial({color: 0x2255bb})));
+
+const noseGeo = new THREE.ConeGeometry(5, 28, 8);
+noseGeo.rotateZ(-Math.PI / 2);
+const noseMesh = new THREE.Mesh(noseGeo, new THREE.MeshLambertMaterial({color: 0x1144aa}));
+noseMesh.position.x = 45;
+targetGrp.add(noseMesh);
+
+const wingMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(28, 2, 72),
+  new THREE.MeshLambertMaterial({color: 0x1f4d99})
+);
+targetGrp.add(wingMesh);
+
+const tailMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(18, 20, 2),
+  new THREE.MeshLambertMaterial({color: 0x1f4d99})
+);
+tailMesh.position.set(-22, 9, 0);
+targetGrp.add(tailMesh);
+
+[-22, 22].forEach(z => {
+  const glowMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(4.5, 8, 8),
+    new THREE.MeshBasicMaterial({color: 0xff6600, transparent: true, opacity: 0.9})
+  );
+  glowMesh.position.set(-30, -2, z);
+  targetGrp.add(glowMesh);
+
+  const haloMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(7.5, 8, 8),
+    new THREE.MeshBasicMaterial({color: 0xff3300, transparent: true, opacity: 0.22})
+  );
+  haloMesh.position.set(-32, -2, z);
+  targetGrp.add(haloMesh);
+});
+
+// ── Visual layer groups ───────────────────────────────────────────────────────
+const noiseGrp   = new THREE.Group(); scene.add(noiseGrp);
+const kalmanGrp  = new THREE.Group(); scene.add(kalmanGrp);
+const trueGrp    = new THREE.Group(); scene.add(trueGrp);
+const pulseGrp   = new THREE.Group(); scene.add(pulseGrp);
+const missileGrp = new THREE.Group(); scene.add(missileGrp);
+const mTrailGrp  = new THREE.Group(); scene.add(mTrailGrp);
+const explGrp    = new THREE.Group(); scene.add(explGrp);
+
+missileGrp.visible = false;
+
+const kfMarker = new THREE.Mesh(
+  new THREE.BoxGeometry(9, 9, 9),
+  new THREE.MeshBasicMaterial({color: 0x00ccff, transparent: true, opacity: 0.75, wireframe: true})
+);
+kalmanGrp.add(kfMarker);
+
+// ── Interceptor mesh ──────────────────────────────────────────────────────────
+const missileConeGeo = new THREE.ConeGeometry(3.5, 34, 6);
+missileConeGeo.rotateX(Math.PI / 2);
+missileGrp.add(new THREE.Mesh(missileConeGeo,
+  new THREE.MeshLambertMaterial({color: 0xffcc00})));
+
+[-1, 1].forEach(s => {
+  const fin = new THREE.Mesh(
+    new THREE.BoxGeometry(14, 1, 6),
+    new THREE.MeshLambertMaterial({color: 0xcc9900})
+  );
+  fin.position.set(0, s * 6, -15);
+  missileGrp.add(fin);
+});
+
+const exhaustGlow = new THREE.Mesh(
+  new THREE.SphereGeometry(5, 8, 8),
+  new THREE.MeshBasicMaterial({color: 0xff4400, transparent: true, opacity: 0.8})
+);
+exhaustGlow.position.z = -18;
+missileGrp.add(exhaustGlow);
+
+// ── Trail line builder ────────────────────────────────────────────────────────
+function makeTrail(pts, color, grp, prev) {
+  if (prev) grp.remove(prev);
+  if (pts.length < 2) return null;
+  const geo = new THREE.BufferGeometry().setFromPoints(
+    pts.map(p => new THREE.Vector3(p[0], p[1], p[2]))
+  );
+  const line = new THREE.Line(geo,
+    new THREE.LineBasicMaterial({color, transparent: true, opacity: 0.88}));
+  grp.add(line);
+  return line;
+}
+
+// ── Radar pulse rings ─────────────────────────────────────────────────────────
+const activeRings = [];
+
+function spawnRing() {
+  const geo = new THREE.RingGeometry(0.5, 1, 72);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x00ff88, transparent: true, opacity: 0.88, side: THREE.DoubleSide
+  });
+  const ring = new THREE.Mesh(geo, mat);
+  ring.rotation.x = -Math.PI / 2;
+  ring.userData = {r: 0, maxR: 1600, spd: 9};
+  pulseGrp.add(ring);
+  activeRings.push(ring);
+}
+
+// ── Matrix math helpers ───────────────────────────────────────────────────────
+const mMul = (A, B) => A.map(r => B[0].map((_, j) => r.reduce((s, v, k) => s + v * B[k][j], 0)));
+const mAdd = (A, B) => A.map((r, i) => r.map((v, j) => v + B[i][j]));
+const mSub = (A, B) => A.map((r, i) => r.map((v, j) => v - B[i][j]));
+const mTrp = A => A[0].map((_, j) => A.map(r => r[j]));
+const mEye = n => Array.from({length: n}, (_, i) => Array.from({length: n}, (_, j) => i === j ? 1 : 0));
+const mvMul = (M, v) => M.map(r => r.reduce((s, m, j) => s + m * v[j], 0));
+const vAdd  = (a, b) => a.map((v, i) => v + b[i]);
+const vSub  = (a, b) => a.map((v, i) => v - b[i]);
+
+function inv3x3(A) {
+  const [a,b,c] = A[0], [d,e,f] = A[1], [g,h,k] = A[2];
+  const det = a*(e*k - f*h) - b*(d*k - f*g) + c*(d*h - e*g);
+  const s = 1 / det;
+  return [
+    [(e*k - f*h)*s, (c*h - b*k)*s, (b*f - c*e)*s],
+    [(f*g - d*k)*s, (a*k - c*g)*s, (c*d - a*f)*s],
+    [(d*h - e*g)*s, (b*g - a*h)*s, (a*e - b*d)*s],
+  ];
+}
+
+// ── Kalman filter (6-state: px,py,pz,vx,vy,vz) ───────────────────────────────
+const DT_KF = 1;
+const KF_Q  = 2.0;
+
+const KF_F = [
+  [1,0,0,DT_KF,0,    0    ],
+  [0,1,0,0,    DT_KF,0    ],
+  [0,0,1,0,    0,    DT_KF],
+  [0,0,0,1,    0,    0    ],
+  [0,0,0,0,    1,    0    ],
+  [0,0,0,0,    0,    1    ],
+];
+const KF_Ft = mTrp(KF_F);
+
+const KF_Q_mat = (() => {
+  const dt=DT_KF, q2=KF_Q*KF_Q;
+  const dt2=dt*dt, dt3=dt2*dt, dt4=dt3*dt;
+  return [
+    [dt4/4,0,0, dt3/2,0,0],[0,dt4/4,0, 0,dt3/2,0],[0,0,dt4/4, 0,0,dt3/2],
+    [dt3/2,0,0, dt2,0,0],  [0,dt3/2,0, 0,dt2,0],  [0,0,dt3/2, 0,0,dt2]
+  ].map(r => r.map(v => v * q2));
+})();
+
+const KF_H  = [[1,0,0,0,0,0],[0,1,0,0,0,0],[0,0,1,0,0,0]];
+const KF_Ht = mTrp(KF_H);
+
+function kfStep(x, P, z, sigR, sigAlt) {
+  const R = [[sigR*sigR,0,0],[0,sigAlt*sigAlt,0],[0,0,sigR*sigR]];
+  const xp = mvMul(KF_F, x);
+  const Pp = mAdd(mMul(mMul(KF_F, P), KF_Ft), KF_Q_mat);
+  const S  = mAdd(mMul(mMul(KF_H, Pp), KF_Ht), R);
+  const K  = mMul(mMul(Pp, KF_Ht), inv3x3(S));
+  const xn = vAdd(xp, mvMul(K, vSub(z, mvMul(KF_H, xp))));
+  const Pn = mMul(mSub(mEye(6), mMul(K, KF_H)), Pp);
+  return {x: xn, P: Pn};
+}
+
+// ── Simulation constants ──────────────────────────────────────────────────────
+const SIGMA_R   = 45;
+const SIGMA_ALT = 18;
+const KILL_R    = 90;
+const T_ALT     = 210;
+const T_SPD     = 4.3;
+const PULSE_IV  = 55;
+const LAUNCH_AT = 200;
+const MS_SPEED  = 10;
+
+const T_START = new THREE.Vector3(-1100, T_ALT, -680);
+
+// ── Simulation state ──────────────────────────────────────────────────────────
+let simT = 0, paused = false, speedMult = 1, orbitT = 0;
+let tPos, tVel, tAcc;
+let kfX, kfP;
+let rawErrs, kfErrs, detCount, pulseT;
+let kfPts, truePts, mTrailPts;
+let kfLine = null, trueLine = null, mTrailLine = null;
+let mLaunched, mPos, mTgt, mTime, intercepted;
+let exploding, explT;
+const explParts = [];
+
+const layers = {noise: true, kalman: true, missile: true};
+
+// ── Equation overlay state ────────────────────────────────────────────────────
+let radarEqShown = false, kalmanEqShown = false;
+let interceptEqShown = false, guidanceEqShown = false;
+let cinematicActive = false;
+let eqFadeTO    = null;   // current equation panel fadeout handle
+let typewriteIv  = null;  // current typewriter interval
+const eqStageTOs = [];    // within-overlay staged reveal timers
+const pendingTOs = [];    // delay-before-show handles (cleared on reset)
+
+function initState(resetEqs = true) {
+  simT = 0; paused = false; orbitT = 0;
+  tPos = T_START.clone();
+  tVel = new THREE.Vector3(T_SPD, 0, T_SPD * 0.75).normalize().multiplyScalar(T_SPD);
+  tAcc = new THREE.Vector3();
+
+  kfX = [tPos.x, tPos.y, tPos.z, tVel.x, tVel.y, tVel.z];
+  kfP = mEye(6).map((r, i) => r.map((v, j) =>
+    i === j ? (i < 3 ? SIGMA_R * SIGMA_R : 300) : 0));
+
+  rawErrs = []; kfErrs = []; detCount = 0; pulseT = 0;
+  kfPts = []; truePts = []; mTrailPts = [];
+
+  mLaunched = false; mPos = new THREE.Vector3(); mTgt = new THREE.Vector3(); mTime = 0;
+  intercepted = false; exploding = false; explT = 0;
+
+  if (resetEqs) {
+    radarEqShown = false; kalmanEqShown = false;
+    interceptEqShown = false; guidanceEqShown = false;
+    cinematicActive = false;
+  }
+}
+initState();
+
+// ── Equation overlay helpers ──────────────────────────────────────────────────
+function showCalcFlash(text, col) {
+  const el = document.getElementById('calcflash');
+  el.textContent = text;
+  el.style.color = col || '#ffaa00';
+  el.style.textShadow = '0 0 16px ' + (col || '#ffaa00') + '99';
+  el.classList.add('show');
+}
+
+function hideCalcFlash() {
+  document.getElementById('calcflash').classList.remove('show');
+}
+
+function showEquationOverlay(title, equation, explanation, color, durMs, onHide) {
+  // Cancel any in-flight overlay and stage timers
+  if (eqFadeTO)    { clearTimeout(eqFadeTO);    eqFadeTO    = null; }
+  if (typewriteIv) { clearInterval(typewriteIv); typewriteIv = null; }
+  eqStageTOs.forEach(clearTimeout);
+  eqStageTOs.length = 0;
+
+  const panel    = document.getElementById('eqpanel');
+  const dim      = document.getElementById('eqdim');
+  const reportEl = document.getElementById('eqreport');
+  const titleEl  = document.getElementById('eqtitle');
+  const mainEl   = document.getElementById('eqmain');
+  const explEl   = document.getElementById('eqexpl');
+  const col      = color || '#00ff88';
+
+  // Pre-load content and colour, reset staged opacities
+  titleEl.textContent        = title;
+  titleEl.style.color        = col;
+  mainEl.style.color         = col;
+  mainEl.textContent         = '';
+  explEl.textContent         = explanation;
+  panel.style.borderLeftColor = col;
+
+  reportEl.style.opacity = '0';
+  titleEl.style.opacity  = '0';
+  explEl.style.opacity   = '0';
+
+  dim.classList.add('on');
+  panel.classList.add('show');   // panel slides in; children reveal sequentially
+
+  // Stage 1 — report label (80 ms)
+  eqStageTOs.push(setTimeout(() => { reportEl.style.opacity = '1'; }, 80));
+
+  // Stage 2 — title (200 ms)
+  eqStageTOs.push(setTimeout(() => { titleEl.style.opacity = '1'; }, 200));
+
+  // Stage 3 — typewriter for equation (350 ms)
+  eqStageTOs.push(setTimeout(() => {
+    let ci = 0;
+    const chars = Array.from(equation);
+    typewriteIv = setInterval(() => {
+      if (ci < chars.length) {
+        mainEl.textContent += chars[ci++];
+      } else {
+        clearInterval(typewriteIv);
+        typewriteIv = null;
+        // Stage 4 — explanation fades in once typewriter finishes
+        explEl.style.opacity = '1';
+      }
+    }, 50);
+  }, 350));
+
+  // Fade-out the whole panel after durMs
+  eqFadeTO = setTimeout(() => {
+    panel.classList.remove('show');
+    dim.classList.remove('on');
+    eqFadeTO = null;
+    if (onHide) onHide();
+  }, durMs || 2500);
+}
+
+function resetOverlays() {
+  if (eqFadeTO)    { clearTimeout(eqFadeTO);    eqFadeTO    = null; }
+  if (typewriteIv) { clearInterval(typewriteIv); typewriteIv = null; }
+  eqStageTOs.forEach(clearTimeout);  eqStageTOs.length = 0;
+  pendingTOs.forEach(clearTimeout);  pendingTOs.length  = 0;
+  document.getElementById('eqpanel').classList.remove('show');
+  document.getElementById('eqdim').classList.remove('on');
+  hideCalcFlash();
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+function resetSim(full = true) {
+  initState(full);
+  if (full) resetOverlays();
+
+  while (noiseGrp.children.length)  noiseGrp.remove(noiseGrp.children[0]);
+  while (activeRings.length)        { pulseGrp.remove(activeRings[0]); activeRings.shift(); }
+  while (explParts.length)          { explGrp.remove(explParts[0]); explParts.shift(); }
+
+  // kfMarker stays as a child of kalmanGrp — don't remove it
+  if (kfLine)     { kalmanGrp.remove(kfLine);     kfLine     = null; }
+  if (trueLine)   { trueGrp.remove(trueLine);     trueLine   = null; }
+  if (mTrailLine) { mTrailGrp.remove(mTrailLine); mTrailLine = null; }
+
+  explGrp.position.set(0, 0, 0);
+  missileGrp.visible = false;
+  targetGrp.visible  = true;
+
+  const b = document.getElementById('bplay');
+  b.textContent = '⏸ PAUSE'; b.classList.add('act');
+  setPhase('RADAR ACQUISITION', '#00ff88');
+  setMode('ACQUISITION', 'g');
+  document.getElementById('mmis').textContent = 'STANDBY';
+  document.getElementById('mtti').textContent = '—';
+}
+
+function setPhase(text, color) {
+  const el = document.getElementById('phtext');
+  el.textContent = text; el.style.color = color || '#00ff88';
+}
+function setMode(text, cls) {
+  const el = document.getElementById('smode');
+  el.textContent = text; el.className = 'mval ' + (cls || 'g');
+}
+
+// ── Explosion ─────────────────────────────────────────────────────────────────
+function spawnExplosion(pos) {
+  explGrp.position.copy(pos);
+  exploding = true; explT = 0;
+  const palette = [0xff5500, 0xff8800, 0xffcc00, 0xffffff, 0xff2200, 0xffee00];
+
+  for (let i = 0; i < 110; i++) {
+    const geo = new THREE.SphereGeometry(Math.random() * 5 + 1, 4, 4);
+    const mat = new THREE.MeshBasicMaterial({
+      color: palette[i % palette.length], transparent: true, opacity: 1
+    });
+    const p = new THREE.Mesh(geo, mat);
+    const spd = Math.random() * 5.5 + 0.8;
+    const th  = Math.random() * Math.PI * 2;
+    const phi = Math.random() * Math.PI;
+    p.userData.vel = new THREE.Vector3(
+      Math.sin(phi) * Math.cos(th) * spd,
+      Math.cos(phi) * spd * 0.75,
+      Math.sin(phi) * Math.sin(th) * spd
+    );
+    p.userData.life = 1;
+    p.userData.dr   = Math.random() * 0.016 + 0.007;
+    explGrp.add(p); explParts.push(p);
+  }
+
+  const flash = new THREE.Mesh(
+    new THREE.SphereGeometry(55, 16, 16),
+    new THREE.MeshBasicMaterial({color: 0xffdd66, transparent: true, opacity: 0.85})
+  );
+  flash.userData.vel  = null;
+  flash.userData.life = 1;
+  flash.userData.dr   = 0.038;
+  explGrp.add(flash); explParts.push(flash);
+}
+
+// ── Aircraft orientation helper ───────────────────────────────────────────────
+const AIRCRAFT_FWD = new THREE.Vector3(1, 0, 0);
+const MISSILE_FWD  = new THREE.Vector3(0, 0, 1);
+
+function orientToward(grp, dir, modelAxis) {
+  if (dir.lengthSq() < 0.0001) return;
+  const d = dir.clone().normalize();
+  if (d.dot(modelAxis) < -0.9999) { grp.rotateY(Math.PI); return; }
+  grp.quaternion.setFromUnitVectors(modelAxis, d);
+}
+
+// ── Simulation step ───────────────────────────────────────────────────────────
+function step() {
+  if (intercepted) return;
+  simT++;
+
+  // — Target movement —
+  if (simT % 18 === 0) {
+    tAcc.set(
+      (Math.random() - 0.5) * 1.9,
+      (Math.random() - 0.5) * 0.09,
+      (Math.random() - 0.5) * 1.9
+    );
+  }
+  tVel.addScaledVector(tAcc, 1);
+  const spd = tVel.length();
+  if (spd > T_SPD * 1.4) tVel.multiplyScalar((T_SPD * 1.4) / spd);
+  if (spd < T_SPD * 0.7) tVel.normalize().multiplyScalar(T_SPD * 0.7);
+  tVel.y += (T_ALT - tPos.y) * 0.009;
+  tVel.y  = Math.max(-1.3, Math.min(1.3, tVel.y));
+  tPos.addScaledVector(tVel, 1);
+  tPos.x  = Math.max(-1350, Math.min(1350, tPos.x));
+  tPos.z  = Math.max(-1350, Math.min(1350, tPos.z));
+
+  targetGrp.position.copy(tPos);
+  orientToward(targetGrp, tVel, AIRCRAFT_FWD);
+
+  truePts.push([tPos.x, tPos.y, tPos.z]);
+  if (truePts.length > 260) truePts.shift();
+  if (simT % 4 === 0) trueLine = makeTrail(truePts, 0x00ff66, trueGrp, trueLine);
+
+  targetGrp.children.forEach(child => {
+    if (child.material && child.material.color &&
+        child.material.color.r > 0.85 && child.material.color.g < 0.5) {
+      child.material.opacity = 0.65 + Math.random() * 0.35;
+    }
+  });
+
+  // — Radar ping —
+  pulseT++;
+  if (pulseT >= PULSE_IV) {
+    pulseT = 0;
+    spawnRing();
+
+    // ── Equation A → B → C → D chained via onHide so each shows full 3.5 s ─────
+    if (!radarEqShown) {
+      radarEqShown = true;
+      showEquationOverlay(
+        'RADAR MEASUREMENT MODEL',
+        'zₖ = Hxₖ + vₖ',
+        'The radar measures the target position, but noise is added to the true state.',
+        '#00ff88', 8000,
+        () => {
+          kalmanEqShown = true;
+          showEquationOverlay(
+            'KALMAN CORRECTION STEP',
+            'x̂ₖ|ₖ = x̂ₖ|ₖ₋₁ + Kₖ(zₖ − Hx̂ₖ|ₖ₋₁)',
+            'The filter corrects the predicted position using the noisy radar measurement.',
+            '#00aaff', 8000,
+            () => {
+              interceptEqShown = true;
+              showEquationOverlay(
+                'INTERCEPT OPTIMISATION',
+                '‖p_T(τ+t) − p_I‖ ≤ v_I · t',
+                'The system searches for the earliest future point the interceptor can reach.',
+                '#ffaa00', 8000,
+                () => {
+                  cinematicActive = false;
+                  guidanceEqShown = true;
+                  showEquationOverlay(
+                    'GUIDANCE UPDATE',
+                    'p_T(τ+t) ≈ p̂(τ) + v̂(τ)t',
+                    'The estimated position and velocity are used to predict where the target will be.',
+                    '#00aaff', 8000
+                  );
+                }
+              );
+            }
+          );
+        }
+      );
+    }
+
+    const z = [
+      tPos.x + (Math.random() - 0.5) * SIGMA_R   * 2.3,
+      tPos.y + (Math.random() - 0.5) * SIGMA_ALT * 2.3,
+      tPos.z + (Math.random() - 0.5) * SIGMA_R   * 2.3,
+    ];
+
+    if (noiseGrp.children.length > 55) noiseGrp.remove(noiseGrp.children[0]);
+    const dot = new THREE.Mesh(
+      new THREE.SphereGeometry(3.2, 6, 6),
+      new THREE.MeshBasicMaterial({color: 0xff2222, transparent: true, opacity: 0.88})
+    );
+    dot.position.set(z[0], z[1], z[2]);
+    noiseGrp.add(dot);
+
+    rawErrs.push(Math.sqrt((z[0]-tPos.x)**2 + (z[1]-tPos.y)**2 + (z[2]-tPos.z)**2));
+
+    const res = kfStep(kfX, kfP, z, SIGMA_R, SIGMA_ALT);
+    kfX = res.x; kfP = res.P;
+
+    kfErrs.push(Math.sqrt((kfX[0]-tPos.x)**2 + (kfX[1]-tPos.y)**2 + (kfX[2]-tPos.z)**2));
+
+    kfPts.push([kfX[0], kfX[1], kfX[2]]);
+    if (kfPts.length > 260) kfPts.shift();
+    kfLine = makeTrail(kfPts, 0x00aaff, kalmanGrp, kfLine);
+    kfMarker.position.set(kfX[0], kfX[1], kfX[2]);
+
+    detCount++;
+
+  }
+
+  // — Pulse ring expansion —
+  for (let i = activeRings.length - 1; i >= 0; i--) {
+    const ring = activeRings[i];
+    ring.userData.r += ring.userData.spd;
+    ring.scale.setScalar(ring.userData.r);
+    ring.material.opacity = 0.88 * (1 - ring.userData.r / ring.userData.maxR);
+    if (ring.userData.r >= ring.userData.maxR) {
+      pulseGrp.remove(ring);
+      activeRings.splice(i, 1);
+    }
+  }
+
+  // ── CALCULATING flash at intercept compute time (equation shown via chain) ───
+  if (simT === LAUNCH_AT - 55) {
+    cinematicActive = true;
+    showCalcFlash('CALCULATING...', '#ffaa00');
+    const t1 = setTimeout(hideCalcFlash, 700);
+    pendingTOs.push(t1);
+  }
+
+  // — Interceptor launch —
+  if (simT === LAUNCH_AT && !mLaunched) {
+    mLaunched = true;
+    const lead = 95;
+    mTgt.set(
+      kfX[0] + kfX[3] * lead,
+      Math.max(kfX[1] + kfX[4] * lead, 40),
+      kfX[2] + kfX[5] * lead
+    );
+    mPos.copy(LAUNCH_POS).setY(35);
+    missileGrp.position.copy(mPos);
+    missileGrp.visible = layers.missile;
+    mTime = 0;
+    setPhase('INTERCEPTOR LAUNCHED', '#ffaa00');
+    setMode('ENGAGING', 'd');
+
+    // Flash "SOLUTION FOUND", then show guidance equation
+    showCalcFlash('SOLUTION FOUND', '#00ffcc');
+    const t2 = setTimeout(hideCalcFlash, 700);
+    pendingTOs.push(t2);
+
+  }
+
+  // — Interceptor guidance —
+  if (mLaunched && !intercepted) {
+    mTime++;
+
+    const lead = Math.max(0, 95 - mTime);
+    const pred = new THREE.Vector3(
+      kfX[0] + kfX[3] * lead,
+      Math.max(kfX[1] + kfX[4] * lead, 40),
+      kfX[2] + kfX[5] * lead
+    );
+    mTgt.lerp(pred, 0.05);
+
+    const dir  = new THREE.Vector3().subVectors(mTgt, mPos);
+    const dist = dir.length();
+    dir.normalize();
+    mPos.addScaledVector(dir, Math.min(dist, MS_SPEED));
+    missileGrp.position.copy(mPos);
+    orientToward(missileGrp, dir, MISSILE_FWD);
+
+    mTrailPts.push([mPos.x, mPos.y, mPos.z]);
+    if (mTrailPts.length > 130) mTrailPts.shift();
+    mTrailLine = makeTrail(mTrailPts, 0xffaa00, mTrailGrp, mTrailLine);
+
+    if (mPos.distanceTo(tPos) < KILL_R || mTime > 300) {
+      intercepted = true;
+      spawnExplosion(mPos.clone());
+      missileGrp.visible = false;
+      targetGrp.visible  = false;
+      setPhase('INTERCEPT COMPLETE', '#ff3333');
+      setMode('DESTROYED', 'd');
+      document.getElementById('mmis').textContent = 'INTERCEPT ✓';
+      setTimeout(() => { targetGrp.visible = true; resetSim(false); }, 4500);
+    }
+  }
+}
+
+// ── HUD update ────────────────────────────────────────────────────────────────
+function updateHUD() {
+  const range = Math.sqrt(tPos.x * tPos.x + tPos.z * tPos.z);
+  document.getElementById('mrange').textContent = range.toFixed(0) + ' m';
+  document.getElementById('malt').textContent   = tPos.y.toFixed(0) + ' m';
+  document.getElementById('mspd').textContent   = (tVel.length() * 60).toFixed(0) + ' m/s';
+  document.getElementById('sdet').textContent   = detCount;
+
+  if (rawErrs.length > 0) {
+    const n    = Math.min(8, rawErrs.length);
+    const avgR = rawErrs.slice(-n).reduce((a, b) => a + b, 0) / n;
+    const avgK = kfErrs.slice(-n).reduce((a, b) => a + b, 0) / n;
+    const red  = Math.max(0, (1 - avgK / avgR) * 100);
+    document.getElementById('mraw').textContent = avgR.toFixed(1) + ' m';
+    document.getElementById('mkf').textContent  = avgK.toFixed(1) + ' m';
+    document.getElementById('mred').textContent = red.toFixed(1)  + '%';
+    const conf = red > 35 ? 'HIGH' : red > 12 ? 'MEDIUM' : 'LOW';
+    const confEl = document.getElementById('sconf');
+    confEl.textContent = conf;
+    confEl.className   = 'mval ' + (red > 35 ? 'g' : red > 12 ? '' : 'w');
+  }
+
+  if (mLaunched && !intercepted) {
+    const d = mPos.distanceTo(tPos);
+    document.getElementById('mmis').textContent = 'IN FLIGHT';
+    document.getElementById('mtti').textContent = (d / (MS_SPEED * 60)).toFixed(1) + ' s';
+    document.getElementById('sradar').textContent = 'TRACKING + GUIDING';
+  } else if (!mLaunched) {
+    if (simT > 30) setMode('TRACKING', 'w');
+    document.getElementById('sradar').textContent = pulseT < 8 ? 'PINGING' : 'SCANNING';
+  }
+
+  document.getElementById('prog').style.width =
+    Math.min(100, (simT / (LAUNCH_AT + 240)) * 100) + '%';
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+document.getElementById('bplay').addEventListener('click', () => {
+  paused = !paused;
+  const b = document.getElementById('bplay');
+  b.textContent = paused ? '▶ PLAY' : '⏸ PAUSE';
+  b.classList.toggle('act', !paused);
+});
+
+document.getElementById('bspd').addEventListener('input', e => {
+  speedMult = parseFloat(e.target.value);
+  document.getElementById('bspdlbl').textContent = speedMult + '×';
+});
+
+document.getElementById('breset').addEventListener('click', resetSim);
+
+['noise', 'kalman', 'missile'].forEach(name => {
+  document.getElementById('t' + name).addEventListener('click', () => {
+    layers[name] = !layers[name];
+    document.getElementById('t' + name).classList.toggle('on', layers[name]);
+    if (name === 'noise')   noiseGrp.visible  = layers[name];
+    if (name === 'kalman')  { kalmanGrp.visible = layers[name]; trueGrp.visible = layers[name]; }
+    if (name === 'missile') { mTrailGrp.visible = layers[name];
+      missileGrp.visible = layers[name] && mLaunched && !intercepted; }
+  });
+});
+
+// ── Render / animation loop ───────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (!paused) {
+    const steps = cinematicActive ? 1 : Math.max(1, Math.round(speedMult));
+    for (let i = 0; i < steps; i++) step();
+    orbitT += 0.00018 * steps;
+  }
+
+  dishGroup.rotation.y += 0.024;
+
+  camera.position.set(
+    Math.cos(orbitT) * 1080,
+    460 + Math.sin(orbitT * 0.35) * 90,
+    Math.sin(orbitT) * 880
+  );
+  camera.lookAt(0, 150, 0);
+
+  if (exploding) {
+    explT++;
+    for (let i = explParts.length - 1; i >= 0; i--) {
+      const p = explParts[i];
+      if (p.userData.vel) {
+        p.position.addScaledVector(p.userData.vel, 1);
+        p.userData.vel.y -= 0.13;
+      } else {
+        p.scale.setScalar(1 + 2.2 * (1 - p.userData.life));
+      }
+      p.userData.life -= p.userData.dr;
+      p.material.opacity = Math.max(0, p.userData.life);
+    }
+    if (explT > 150) exploding = false;
+  }
+
+  renderer.render(scene, camera);
+  updateHUD();
+}
+
+animate();
+</script>
+</body>
+</html>

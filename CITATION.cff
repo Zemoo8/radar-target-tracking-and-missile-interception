@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: "If you use this software or its results, please cite it as below."
+type: software
+title: "AEGIS: Radar Target Tracking and Interception Simulator"
+abstract: >-
+  A from-scratch implementation of recursive Bayesian state estimation for noisy
+  radar target tracking. The project comprises a discrete-time linear Kalman
+  filter with an analytically discretised white-noise-acceleration process model,
+  a predictive intercept solver, a Monte-Carlo evaluation harness, and a
+  real-time 3-D simulator built on a hand-written software rendering pipeline.
+authors:
+  - family-names: Baghouli
+    given-names: Ahmed
+    alias: Zemoo8
+repository-code: "https://github.com/Zemoo8/radar-target-tracking-and-missile-interception"
+license: MIT
+version: 1.0.0
+date-released: "2026-08-15"
+keywords:
+  - kalman-filter
+  - state-estimation
+  - bayesian-filtering
+  - target-tracking
+  - sensor-fusion
+  - monte-carlo-simulation
+  - radar
+  - numpy
+  - python
+references:
+  - type: article
+    title: "A New Approach to Linear Filtering and Prediction Problems"
+    authors:
+      - family-names: Kalman
+        given-names: Rudolf Emil
+    journal: "Journal of Basic Engineering"
+    volume: 82
+    issue: 1
+    year: 1960

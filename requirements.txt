@@ -1,0 +1,12 @@
+# ── Core scientific stack (required) ────────────────────────────────────────
+numpy>=1.21
+matplotlib>=3.5
+
+# ── Real-time 3-D simulator only ─────────────────────────────────────────────
+# Not required by the headless Monte-Carlo study (kalman_missile_sim.py).
+# pygame-ce is a drop-in replacement and is preferred on newer Python versions.
+pygame>=2.1
+
+# ── Development / CI ─────────────────────────────────────────────────────────
+pytest>=7.0
+ruff>=0.4

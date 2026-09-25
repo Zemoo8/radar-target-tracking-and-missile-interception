@@ -1,2 +1,5 @@
+# Local assistant settings (machine-specific)
+.claude/settings.local.json
+
 __pycache__/
 *.pyc
